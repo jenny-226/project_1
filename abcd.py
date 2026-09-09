@@ -2,15 +2,11 @@
 
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import pandas as pd
-import seaborn as sns
 import streamlit as st
 
 
 st.set_page_config(page_title="무역 분석 대시보드", page_icon="📊", layout="wide")
-plt.rcParams["font.family"] = "Malgun Gothic"
-plt.rcParams["axes.unicode_minus"] = False
 
 DATA_DIR = Path(__file__).resolve().parent
 TRADE_PATH = DATA_DIR / "baci_85_sample.csv"
@@ -74,17 +70,12 @@ def main() -> None:
 
     left, right = st.columns(2)
     with left:
-        st.subheader("국가 × 연도 수출액 히트맵 (상위 8개국)")
+        st.subheader("국가 × 연도 수출액 추이 (상위 8개국)")
         top8 = filtered.groupby("country_name")["v"].sum().nlargest(8).index
         heatmap = filtered[filtered["country_name"].isin(top8)].pivot_table(
             index="country_name", columns="t", values="v", aggfunc="sum", fill_value=0
         ).reindex(top8)
-        figure, axis = plt.subplots(figsize=(8, 5))
-        sns.heatmap(heatmap, cmap="YlOrRd", annot=True, fmt=".0f", linewidths=0.5, ax=axis)
-        axis.set_xlabel("연도")
-        axis.set_ylabel("국가")
-        st.pyplot(figure, width="stretch")
-        plt.close(figure)
+        st.bar_chart(heatmap.T, width="stretch")
 
     with right:
         st.subheader("무역액 등급분포")
