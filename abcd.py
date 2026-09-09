@@ -71,7 +71,7 @@ def main() -> None:
 
     left, right = st.columns(2)
     with left:
-        st.subheader("📈 국가 × 연도 수출액 추이 (상위 8개국)")
+        st.subheader("🔥 국가 × 연도 수출액 히트맵 (상위 8개국)")
         top8 = filtered.groupby("country_name")["v"].sum().nlargest(8).index
         heatmap = filtered[filtered["country_name"].isin(top8)].pivot_table(
             index="country_name", columns="t", values="v", aggfunc="sum", fill_value=0
@@ -82,25 +82,38 @@ def main() -> None:
             .melt(id_vars="year", var_name="country_name", value_name="export_value")
         )
         country_order = list(top8)
-        encoding = {
+        heatmap_encoding = {
             "x": alt.X("year:O", title="연도"),
-            "xOffset": alt.XOffset("country_name:N", sort=country_order),
-            "y": alt.Y("export_value:Q", title="수출액 (천 달러)", scale=alt.Scale(zero=True)),
-            "color": alt.Color("country_name:N", title="국가", sort=country_order),
+            "y": alt.Y("country_name:N", title="국가", sort=country_order),
+            "color": alt.Color(
+                "export_value:Q",
+                title="수출액 (천 달러)",
+                scale=alt.Scale(scheme="yelloworangered"),
+            ),
             "tooltip": [
                 alt.Tooltip("country_name:N", title="국가"),
                 alt.Tooltip("year:O", title="연도"),
                 alt.Tooltip("export_value:Q", title="수출액 (천 달러)", format=",")
             ],
         }
-        bars = alt.Chart(chart_data).mark_bar().encode(**encoding)
+        label_threshold = chart_data["export_value"].quantile(0.65)
+        cells = alt.Chart(chart_data).mark_rect(cornerRadius=3).encode(**heatmap_encoding)
         labels = (
             alt.Chart(chart_data)
-            .mark_text(dy=-8, fontSize=10, color="#1f2937")
-            .encode(**encoding, text=alt.Text("export_value:Q", format=","))
+            .mark_text(fontSize=11, fontWeight="bold")
+            .encode(
+                x=alt.X("year:O", title="연도"),
+                y=alt.Y("country_name:N", title="국가", sort=country_order),
+                text=alt.Text("export_value:Q", format=","),
+                color=alt.condition(
+                    alt.datum.export_value > label_threshold,
+                    alt.value("white"),
+                    alt.value("#3f2b00"),
+                ),
+            )
         )
-        st.altair_chart((bars + labels).properties(height=360), width="stretch")
-        st.caption("💡 막대 위 숫자는 수출액(천 달러)이며, 막대에 마우스를 올리면 상세 값을 볼 수 있습니다.")
+        st.altair_chart((cells + labels).properties(height=360), width="stretch")
+        st.caption("💡 색이 진할수록 수출액이 크며, 각 셀의 숫자는 수출액(천 달러)입니다.")
 
     with right:
         st.subheader("💰 무역액 등급분포")
