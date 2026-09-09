@@ -120,7 +120,28 @@ def main() -> None:
     with right:
         st.subheader("💰 무역액 등급분포")
         grade_counts = filtered["무역액 등급"].value_counts().reindex(["대", "중", "소"], fill_value=0)
-        st.bar_chart(grade_counts, color="#2563eb")
+        grade_data = grade_counts.rename("count").rename_axis("grade").reset_index()
+        grade_chart = alt.Chart(grade_data).encode(
+            x=alt.X("grade:N", title="등급", sort=["대", "중", "소"]),
+            y=alt.Y("count:Q", title="거래 건수", scale=alt.Scale(zero=True)),
+            color=alt.Color(
+                "grade:N",
+                title="등급",
+                scale=alt.Scale(
+                    domain=["대", "중", "소"],
+                    range=["#2563eb", "#14b8a6", "#f59e0b"],
+                ),
+            ),
+            tooltip=[
+                alt.Tooltip("grade:N", title="등급"),
+                alt.Tooltip("count:Q", title="거래 건수", format=","),
+            ],
+        )
+        bars = grade_chart.mark_bar(cornerRadiusTopLeft=5, cornerRadiusTopRight=5)
+        labels = grade_chart.mark_text(dy=-8, fontSize=12, fontWeight="bold").encode(
+            text=alt.Text("count:Q", format=",")
+        )
+        st.altair_chart((bars + labels).properties(height=300), width="stretch")
         st.caption("전체 수출액의 3분위수 기준으로 대·중·소를 구분했습니다.")
 
     st.subheader("🏆 상위 5개국 × 무역액 등급 교차표")
