@@ -88,7 +88,9 @@ def main() -> None:
             "color": alt.Color(
                 "export_value:Q",
                 title="수출액 (천 달러)",
-                scale=alt.Scale(scheme="yelloworangered"),
+                scale=alt.Scale(
+                    range=["#eef6ff", "#cfe8ff", "#8cc8ff", "#4098d7", "#1464a0"]
+                ),
             ),
             "tooltip": [
                 alt.Tooltip("country_name:N", title="국가"),
