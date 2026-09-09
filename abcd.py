@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -47,49 +48,73 @@ def main() -> None:
         st.error(f"CSV를 불러오는 중 오류가 발생했습니다: {error}")
         return
 
-    st.sidebar.header("필터")
+    st.sidebar.header("🔎 필터")
     all_countries = sorted(data["country_name"].unique())
-    selected_countries = st.sidebar.multiselect("국가 선택", all_countries, default=all_countries)
-    selected_grades = st.sidebar.multiselect("무역액 등급 선택", ["대", "중", "소"], default=["대", "중", "소"])
+    selected_countries = st.sidebar.multiselect("🌍 국가 선택", all_countries, default=all_countries)
+    selected_grades = st.sidebar.multiselect("💰 무역액 등급 선택", ["대", "중", "소"], default=["대", "중", "소"])
     filtered = data[
         data["country_name"].isin(selected_countries)
         & data["무역액 등급"].isin(selected_grades)
     ].copy()
 
-    st.subheader("BACI 원본 파일 결측치")
+    st.subheader("🧾 BACI 원본 파일 결측치")
     missing = data[["i", "j", "k", "t", "v"]].isna().sum().rename("결측치 수").to_frame()
     missing["결측 비율(%)"] = (missing["결측치 수"] / len(data) * 100).round(2)
     st.dataframe(missing, width="stretch")
 
     metric_a, metric_b = st.columns(2)
-    metric_a.metric("총 거래건수", f"{len(filtered):,}건")
-    metric_b.metric("총 수출액(달러)", f"${filtered['v'].sum() * 1_000:,.0f}")
+    metric_a.metric("📦 총 거래건수", f"{len(filtered):,}건")
+    metric_b.metric("💵 총 수출액(달러)", f"${filtered['v'].sum() * 1_000:,.0f}")
     if filtered.empty:
         st.info("선택한 필터에 해당하는 거래 데이터가 없습니다.")
         return
 
     left, right = st.columns(2)
     with left:
-        st.subheader("국가 × 연도 수출액 추이 (상위 8개국)")
+        st.subheader("📈 국가 × 연도 수출액 추이 (상위 8개국)")
         top8 = filtered.groupby("country_name")["v"].sum().nlargest(8).index
         heatmap = filtered[filtered["country_name"].isin(top8)].pivot_table(
             index="country_name", columns="t", values="v", aggfunc="sum", fill_value=0
         ).reindex(top8)
-        st.bar_chart(heatmap.T, width="stretch")
+        chart_data = (
+            heatmap.T.rename_axis("year")
+            .reset_index()
+            .melt(id_vars="year", var_name="country_name", value_name="export_value")
+        )
+        country_order = list(top8)
+        encoding = {
+            "x": alt.X("year:O", title="연도"),
+            "xOffset": alt.XOffset("country_name:N", sort=country_order),
+            "y": alt.Y("export_value:Q", title="수출액 (천 달러)", scale=alt.Scale(zero=True)),
+            "color": alt.Color("country_name:N", title="국가", sort=country_order),
+            "tooltip": [
+                alt.Tooltip("country_name:N", title="국가"),
+                alt.Tooltip("year:O", title="연도"),
+                alt.Tooltip("export_value:Q", title="수출액 (천 달러)", format=",")
+            ],
+        }
+        bars = alt.Chart(chart_data).mark_bar().encode(**encoding)
+        labels = (
+            alt.Chart(chart_data)
+            .mark_text(dy=-8, fontSize=10, color="#1f2937")
+            .encode(**encoding, text=alt.Text("export_value:Q", format=","))
+        )
+        st.altair_chart((bars + labels).properties(height=360), width="stretch")
+        st.caption("💡 막대 위 숫자는 수출액(천 달러)이며, 막대에 마우스를 올리면 상세 값을 볼 수 있습니다.")
 
     with right:
-        st.subheader("무역액 등급분포")
+        st.subheader("💰 무역액 등급분포")
         grade_counts = filtered["무역액 등급"].value_counts().reindex(["대", "중", "소"], fill_value=0)
         st.bar_chart(grade_counts, color="#2563eb")
         st.caption("전체 수출액의 3분위수 기준으로 대·중·소를 구분했습니다.")
 
-    st.subheader("상위 5개국 × 무역액 등급 교차표")
+    st.subheader("🏆 상위 5개국 × 무역액 등급 교차표")
     top5 = filtered.groupby("country_name")["v"].sum().nlargest(5).index
     top5_data = filtered[filtered["country_name"].isin(top5)]
     table = pd.crosstab(top5_data["country_name"], top5_data["무역액 등급"]).reindex(
         index=top5, columns=["대", "중", "소"], fill_value=0
     )
-    raw_tab, normalized_tab = st.tabs(["원본 건수", "정규화 비율"])
+    raw_tab, normalized_tab = st.tabs(["🔢 원본 건수", "📊 정규화 비율"])
     with raw_tab:
         st.dataframe(table, width="stretch")
     with normalized_tab:
